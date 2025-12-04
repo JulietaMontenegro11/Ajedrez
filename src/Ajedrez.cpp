@@ -3,143 +3,152 @@
 #include <map>
 #include <string>
 
-// Tamaño de una casilla en píxeles
-const int TILE_SIZE = 80;
+using namespace std;
 
-// Función para cargar una textura con verificación
-bool loadTexture(sf::Texture& texture, const std::string& filename) {
-    if (!texture.loadFromFile(filename)) {
-        std::cout << "Error cargando: " << filename << "\n";
+// ----------------------
+// Función para cargar una imagen
+// ----------------------
+bool cargarImagen(sf::Texture &imagen, const string &ruta) {
+    if (!imagen.loadFromFile(ruta)) {
+        cout << "No se pudo cargar: " << ruta << endl;
         return false;
     }
     return true;
 }
 
+// Tamaño de cada casilla jugable del tablero (800x800 dentro de imagen 820)
+const int TAM_CASILLA = 100;
+
+// Offset donde comienza el tablero dentro del fondo
+const int OFFSET_X = 373; // distancia del borde izquierdo
+const int OFFSET_Y = 50;  // distancia del borde superior
+
 int main() {
+    sf::RenderWindow ventana(sf::VideoMode(1200, 900), "Ajedrez SFML");
 
-    sf::RenderWindow window(sf::VideoMode(640, 640), "Ajedrez SFML");
+    // ----- Cargar imágenes -----
+    sf::Texture fondoTXT, tableroTXT;
+    cargarImagen(fondoTXT, "assets/images/Fondo.png");
+    cargarImagen(tableroTXT, "assets/images/Tablero.png");
 
-    // ---------------------------
-    // Cargar tablero
-    // ---------------------------
-    sf::Texture boardTexture;
-    if (!loadTexture(boardTexture, "assets/images/board.png"))
-        return -1;
+    sf::Sprite fondo(fondoTXT);
+    sf::Sprite tablero(tableroTXT);
+    tablero.setPosition(OFFSET_X, OFFSET_Y);
 
-    sf::Sprite boardSprite(boardTexture);
+    // ----- Cargar piezas -----
+    map<string, sf::Texture> texturaPieza;
 
-    // ---------------------------
-    // Cargar texturas de piezas
-    // ---------------------------
-    std::map<std::string, sf::Texture> textures;
+    string tipos[] = {"Peon", "Torre", "Caballo", "Alfil", "Dama", "Rey"};
+    string colores[] = {"B", "R"}; // B = blancas, R = negras
 
-    std::string pieceNames[6] = {"pawn", "rook", "knight", "bishop", "queen", "king"};
-
-    for (const std::string& name : pieceNames) {
-        textures["white_" + name].loadFromFile("assets/images/pieces/white_" + name + ".png");
-        textures["black_" + name].loadFromFile("assets/images/pieces/black_" + name + ".png");
+    for (string base : tipos) {
+        for (string c : colores) {
+            cargarImagen(texturaPieza[base + c], "assets/images/" + base + c + ".png");
+        }
     }
 
-    // ---------------------------
-    // Crear sprites de piezas
-    // ---------------------------
-    std::map<std::string, sf::Sprite> sprites;
+    // ----- Crear sprites -----
+    map<string, sf::Sprite> pieza;
 
-    for (auto& t : textures) {
-        sprites[t.first].setTexture(t.second);
-        sprites[t.first].setScale(80.0f / t.second.getSize().x, 80.0f / t.second.getSize().y);
-    }
+    for (auto &t : texturaPieza)
+        pieza[t.first].setTexture(t.second);
 
-    // ---------------------------
-    // Posiciones iniciales en el tablero
-    // ---------------------------
+    // ----------- Función para colocar una pieza en el tablero -----------
 
-    // Función para posicionar una pieza
-    auto setPos = [&](sf::Sprite& s, int col, int row) {
-        s.setPosition(col * TILE_SIZE, row * TILE_SIZE);
+    auto colocarPieza = [&](string nombre, int columna, int fila) {
+        pieza[nombre].setPosition(OFFSET_X + columna * TAM_CASILLA,
+                                  OFFSET_Y + fila * TAM_CASILLA);
+
+        pieza[nombre].setScale(100.0f / pieza[nombre].getTexture()->getSize().x,
+                               100.0f / pieza[nombre].getTexture()->getSize().y);
     };
+
+    // ----------- Colocación inicial de piezas -----------
 
     // Peones
     for (int i = 0; i < 8; i++) {
-        setPos(sprites["white_pawn"], i, 6);
-        sprites["white_pawn" + std::to_string(i)] = sprites["white_pawn"];
-        setPos(sprites["white_pawn" + std::to_string(i)], i, 6);
+        pieza["PeonB" + to_string(i)] = pieza["PeonB"];
+        colocarPieza("PeonB" + to_string(i), i, 6);
 
-        setPos(sprites["black_pawn"], i, 1);
-        sprites["black_pawn" + std::to_string(i)] = sprites["black_pawn"];
-        setPos(sprites["black_pawn" + std::to_string(i)], i, 1);
+        pieza["PeonR" + to_string(i)] = pieza["PeonR"];
+        colocarPieza("PeonR" + to_string(i), i, 1);
     }
 
     // Torres
-    sprites["white_rook0"] = sprites["white_rook"];
-    sprites["white_rook1"] = sprites["white_rook"];
-    setPos(sprites["white_rook0"], 0, 7);
-    setPos(sprites["white_rook1"], 7, 7);
+    pieza["TorreB0"] = pieza["TorreB"]; colocarPieza("TorreB0", 0, 7);
+    pieza["TorreB1"] = pieza["TorreB"]; colocarPieza("TorreB1", 7, 7);
 
-    sprites["black_rook0"] = sprites["black_rook"];
-    sprites["black_rook1"] = sprites["black_rook"];
-    setPos(sprites["black_rook0"], 0, 0);
-    setPos(sprites["black_rook1"], 7, 0);
+    pieza["TorreR0"] = pieza["TorreR"]; colocarPieza("TorreR0", 0, 0);
+    pieza["TorreR1"] = pieza["TorreR"]; colocarPieza("TorreR1", 7, 0);
 
     // Caballos
-    sprites["white_knight0"] = sprites["white_knight"];
-    sprites["white_knight1"] = sprites["white_knight"];
-    setPos(sprites["white_knight0"], 1, 7);
-    setPos(sprites["white_knight1"], 6, 7);
+    pieza["CaballoB0"] = pieza["CaballoB"]; colocarPieza("CaballoB0", 1, 7);
+    pieza["CaballoB1"] = pieza["CaballoB"]; colocarPieza("CaballoB1", 6, 7);
 
-    sprites["black_knight0"] = sprites["black_knight"];
-    sprites["black_knight1"] = sprites["black_knight"];
-    setPos(sprites["black_knight0"], 1, 0);
-    setPos(sprites["black_knight1"], 6, 0);
+    pieza["CaballoR0"] = pieza["CaballoR"]; colocarPieza("CaballoR0", 1, 0);
+    pieza["CaballoR1"] = pieza["CaballoR"]; colocarPieza("CaballoR1", 6, 0);
 
     // Alfiles
-    sprites["white_bishop0"] = sprites["white_bishop"];
-    sprites["white_bishop1"] = sprites["white_bishop"];
-    setPos(sprites["white_bishop0"], 2, 7);
-    setPos(sprites["white_bishop1"], 5, 7);
+    pieza["AlfilB0"] = pieza["AlfilB"]; colocarPieza("AlfilB0", 2, 7);
+    pieza["AlfilB1"] = pieza["AlfilB"]; colocarPieza("AlfilB1", 5, 7);
 
-    sprites["black_bishop0"] = sprites["black_bishop"];
-    sprites["black_bishop1"] = sprites["black_bishop"];
-    setPos(sprites["black_bishop0"], 2, 0);
-    setPos(sprites["black_bishop1"], 5, 0);
+    pieza["AlfilR0"] = pieza["AlfilR"]; colocarPieza("AlfilR0", 2, 0);
+    pieza["AlfilR1"] = pieza["AlfilR"]; colocarPieza("AlfilR1", 5, 0);
 
-    // Reina
-    sprites["white_queen0"] = sprites["white_queen"];
-    setPos(sprites["white_queen0"], 3, 7);
+    // Damas
+    colocarPieza("DamaB", 3, 7);
+    colocarPieza("DamaR", 3, 0);
 
-    sprites["black_queen0"] = sprites["black_queen"];
-    setPos(sprites["black_queen0"], 3, 0);
+    // Reyes
+    colocarPieza("ReyB", 4, 7);
+    colocarPieza("ReyR", 4, 0);
 
-    // Rey
-    sprites["white_king0"] = sprites["white_king"];
-    setPos(sprites["white_king0"], 4, 7);
+    // --------------- Movimiento del mouse (arrastrar) ---------------
+    bool moviendo = false;
+    string piezaSeleccionada = "";
+    sf::Vector2f diferencia;
 
-    sprites["black_king0"] = sprites["black_king"];
-    setPos(sprites["black_king0"], 4, 0);
+    while (ventana.isOpen()) {
+        sf::Event evento;
+        while (ventana.pollEvent(evento)) {
+            if (evento.type == sf::Event::Closed)
+                ventana.close();
 
-    // ---------------------------
-    // Bucle principal
-    // ---------------------------
-    while (window.isOpen()) {
-        sf::Event event;
+            // Clic para seleccionar pieza
+            if (evento.type == sf::Event::MouseButtonPressed && evento.mouseButton.button == sf::Mouse::Left) {
+                sf::Vector2f mouse = ventana.mapPixelToCoords(sf::Mouse::getPosition(ventana));
 
-        while (window.pollEvent(event)) {
-            if (event.type == sf::Event::Closed)
-                window.close();
+                for (auto &p : pieza) {
+                    if (p.second.getGlobalBounds().contains(mouse)) {
+                        moviendo = true;
+                        piezaSeleccionada = p.first;
+                        diferencia = mouse - p.second.getPosition();
+                    }
+                }
+            }
+
+            // Soltar pieza
+            if (evento.type == sf::Event::MouseButtonReleased && evento.mouseButton.button == sf::Mouse::Left) {
+                moviendo = false;
+                piezaSeleccionada = "";
+            }
         }
 
-        window.clear();
-
-        // Dibujar tablero
-        window.draw(boardSprite);
-
-        // Dibujar piezas
-        for (auto& s : sprites) {
-            window.draw(s.second);
+        if (moviendo && piezaSeleccionada != "") {
+            sf::Vector2f mouse = ventana.mapPixelToCoords(sf::Mouse::getPosition(ventana));
+            pieza[piezaSeleccionada].setPosition(mouse - diferencia);
         }
 
-        window.display();
+        ventana.clear();
+        ventana.draw(fondo);
+        ventana.draw(tablero);
+
+        for (auto &p : pieza)
+            ventana.draw(p.second);
+
+        ventana.display();
     }
 
     return 0;
 }
+
