@@ -1,174 +1,368 @@
+// Juego.cpp
+// Ajedrez SFML - Movimiento legal básico (peon, torre, alfil, caballo, dama, rey)
+// Ajusta rutas de images en assets/images/ como ya tienes (PeonB.png, PeonR.png, TorreB.png, ...)
+
 #include <SFML/Graphics.hpp>
 #include <iostream>
+#include <vector>
 #include <map>
 #include <string>
+#include <cmath>
+#include <optional>
 
 using namespace std;
 
 // ----------------------
-// Función para cargar una imagen
+// Configuración (modifica si quieres)
 // ----------------------
-bool cargarImagen(sf::Texture &imagen, const string &ruta) {
-    if (!imagen.loadFromFile(ruta)) {
-        cout << "No se pudo cargar: " << ruta << endl;
+const int TAM_CASILLA = 70;
+const int TABLERO_X = 381; // X real del tablero (sin márgenes)
+const int TABLERO_Y = 67;  // Y real del tablero (sin márgenes)
+const int FILAS = 8;
+const int COLUMNAS = 8;
+
+// ----------------------
+// Utiles
+// ----------------------
+struct Pos { int fila, col; };
+bool dentroTablero(int fila, int col){ return fila >= 0 && fila < FILAS && col >= 0 && col < COLUMNAS; }
+
+// ----------------------
+// Tipos y estructuras
+// ----------------------
+enum class TipoPieza { Pawn, Rook, Knight, Bishop, Queen, King };
+enum class ColorPieza { White, Black };
+
+struct Pieza {
+    string id;             // id único, ej "PeonB_0"
+    TipoPieza tipo;
+    ColorPieza color;
+    int fila, col;         // posición lógica en tablero
+    sf::Sprite sprite;     // sprite asociado
+};
+
+// tablero lógico: almacena índice en vector piezas o -1 si vacío
+int tableroLogico[FILAS][COLUMNAS];
+
+// ----------------------
+// Cargar textura helper
+// ----------------------
+bool cargarTxt(sf::Texture &t, const string &ruta){
+    if(!t.loadFromFile(ruta)){
+        cerr << "No se pudo cargar: " << ruta << "\n";
         return false;
     }
     return true;
 }
 
 // ----------------------
-// Tamaños y offsets
+// Conversión coordenadas <-> casilla
 // ----------------------
-const int TAM_CASILLA = 70;           // tamaño de cada casilla jugable
-const int TABLERO_TOTAL = 580;        // tablero incluyendo márgenes 10px
-const int OFFSET_X = 375;             // distancia del borde izquierdo
-const int OFFSET_Y = 60;              // distancia del borde superior
-const int MARGEN = 10;                // margen dentro de la imagen del tablero
+// Devuelve centro de casilla (en pixeles) para visualizar sprite correctamente
+sf::Vector2f centroCasilla(int fila, int col){
+    float x = TABLERO_X + col * TAM_CASILLA + TAM_CASILLA/2.0f;
+    float y = TABLERO_Y + fila * TAM_CASILLA + TAM_CASILLA/2.0f;
+    return {x, y};
+}
+
+// Dado un punto en pixeles, devuelve la casilla más cercana (por distancia al centro)
+Pos casillaMasCercanaDesdePixel(float px, float py){
+    // calcular candidato aproximado
+    float fx = (px - TABLERO_X) / (float)TAM_CASILLA;
+    float fy = (py - TABLERO_Y) / (float)TAM_CASILLA;
+    int colC = (int)floor(fx + 0.5f);
+    int filaC = (int)floor(fy + 0.5f);
+    // clamp
+    if (filaC < 0) filaC = 0;
+    if (filaC > FILAS-1) filaC = FILAS-1;
+    if (colC < 0) colC = 0;
+    if (colC > COLUMNAS-1) colC = COLUMNAS-1;
+    return {filaC, colC};
+}
 
 // ----------------------
-// Desplazamiento adicional para ajuste fino
+// Validación de movimientos (considera bloqueos y captura)
 // ----------------------
-const int DESPLAZ_X_BLANCA = 2;
-const int DESPLAZ_Y_BLANCA = 2;
-const int DESPLAZ_X_NEGRA = 0;
-const int DESPLAZ_Y_NEGRA = 0;
+bool casillaOcupada(int fila, int col){ return tableroLogico[fila][col] != -1; }
+ColorPieza colorDeIndice(int idx, const vector<Pieza>& piezas){ return piezas[idx].color; }
+TipoPieza tipoDeIndice(int idx, const vector<Pieza>& piezas){ return piezas[idx].tipo; }
 
-int main() {
-    sf::RenderWindow ventana(sf::VideoMode(1000, 700), "Ajedrez SFML");
+// Chequeo línea recta libre (excluye origen y destino)
+bool lineaLibreRecta(int f1,int c1,int f2,int c2){
+    int dx = (c2>c1)?1: (c2<c1)? -1: 0;
+    int dy = (f2>f1)?1: (f2<f1)? -1: 0;
+    int cx = c1 + dx;
+    int cy = f1 + dy;
+    while(cx != c2 || cy != f2){
+        if (dentroTablero(cy,cx) && casillaOcupada(cy,cx)) return false;
+        cx += dx; cy += dy;
+    }
+    return true;
+}
 
-    // ----- Cargar imágenes -----
-    sf::Texture fondoTXT, tableroTXT;
-    if (!cargarImagen(fondoTXT, "assets/images/Fondo.png")) return -1;
-    if (!cargarImagen(tableroTXT, "assets/images/Tablero.png")) return -1;
+bool movimientoLegal(const vector<Pieza>& piezas, int idx, int dstFila, int dstCol){
+    if (!dentroTablero(dstFila,dstCol)) return false;
+    const Pieza &p = piezas[idx];
+    int srcF = p.fila, srcC = p.col;
+    if (srcF == dstFila && srcC == dstCol) return false;
+    // no poder capturar propia pieza
+    if (casillaOcupada(dstFila,dstCol)){
+        int occ = tableroLogico[dstFila][dstCol];
+        if (occ >= 0 && piezas[occ].color == p.color) return false;
+    }
+    int dx = dstCol - srcC;
+    int dy = dstFila - srcF;
+    int adx = abs(dx), ady = abs(dy);
 
-    sf::Sprite fondo(fondoTXT);
-    sf::Sprite tablero(tableroTXT);
-    tablero.setPosition(OFFSET_X, OFFSET_Y);
+    switch(p.tipo){
+        case TipoPieza::Pawn: {
+            int dir = (p.color == ColorPieza::White) ? -1 : 1; // white up (fila decrece), black down
+            // movimiento vertical simple
+            if (dx == 0 && dy == dir && !casillaOcupada(dstFila,dstCol)) return true;
+            // doble avance en primer movimiento
+            if (dx == 0 && dy == 2*dir){
+                bool inicio = (p.color == ColorPieza::White) ? (srcF == 6) : (srcF == 1);
+                if (!inicio) return false;
+                // casilla intermedia y destino deben estar vacías
+                int midF = srcF + dir;
+                if (!casillaOcupada(midF, srcC) && !casillaOcupada(dstFila,dstCol)) return true;
+                return false;
+            }
+            // captura diagonal
+            if (abs(dx) == 1 && dy == dir && casillaOcupada(dstFila,dstCol)){
+                int occ = tableroLogico[dstFila][dstCol];
+                if (occ >= 0 && piezas[occ].color != p.color) return true;
+            }
+            return false;
+        }
+        case TipoPieza::Rook: {
+            if (dx != 0 && dy != 0) return false;
+            if (!lineaLibreRecta(srcF,srcC,dstFila,dstCol)) return false;
+            return true;
+        }
+        case TipoPieza::Bishop: {
+            if (adx != ady) return false;
+            if (!lineaLibreRecta(srcF,srcC,dstFila,dstCol)) return false;
+            return true;
+        }
+        case TipoPieza::Queen: {
+            if (!((dx == 0) || (dy == 0) || (adx == ady))) return false;
+            if (!lineaLibreRecta(srcF,srcC,dstFila,dstCol)) return false;
+            return true;
+        }
+        case TipoPieza::Knight: {
+            if ( (adx==1 && ady==2) || (adx==2 && ady==1)) return true;
+            return false;
+        }
+        case TipoPieza::King: {
+            if (adx <= 1 && ady <= 1) return true;
+            return false;
+        }
+    }
+    return false;
+}
 
-    // ----- Cargar texturas de piezas -----
-    map<string, sf::Texture> texturaPieza;
-    string tipos[] = {"Peon", "Torre", "Caballo", "Alfil", "Dama", "Rey"};
-    string colores[] = {"B", "R"}; // B = blancas, R = negras
+// ----------------------
+// Actualizar sprite visual en el centro de la casilla
+// ----------------------
+void centrarSpriteEnCasilla(sf::Sprite &s, int fila, int col){
+    sf::Vector2f centro = centroCasilla(fila,col);
+    // ajustar sprite para que su centro coincida
+    sf::FloatRect bounds = s.getLocalBounds();
+    s.setOrigin(bounds.width/2.0f, bounds.height/2.0f);
+    s.setPosition(centro);
+    // escalar para que quepa en TAM_CASILLA (si la textura no es 70x70)
+    sf::Texture const* t = s.getTexture();
+    if(t){
+        float sx = (float)TAM_CASILLA / t->getSize().x;
+        float sy = (float)TAM_CASILLA / t->getSize().y;
+        s.setScale(sx, sy);
+    }
+}
 
-    for (string tipo : tipos) {
-        for (string c : colores) {
-            cargarImagen(texturaPieza[tipo + c], "assets/images/" + tipo + c + ".png");
+// ----------------------
+// Main
+// ----------------------
+int main(){
+    // Ventana
+    sf::RenderWindow window(sf::VideoMode(1000,700), "Ajedrez SFML - Reglas");
+    window.setFramerateLimit(60);
+
+    // Cargar texturas
+    map<string,sf::Texture> tex;
+    vector<pair<string,string>> archivos = {
+        {"PeonB","assets/images/PeonB.png"},{"PeonR","assets/images/PeonR.png"},
+        {"TorreB","assets/images/TorreB.png"},{"TorreR","assets/images/TorreR.png"},
+        {"CaballoB","assets/images/CaballoB.png"},{"CaballoR","assets/images/CaballoR.png"},
+        {"AlfilB","assets/images/AlfilB.png"},{"AlfilR","assets/images/AlfilR.png"},
+        {"DamaB","assets/images/DamaB.png"},{"DamaR","assets/images/DamaR.png"},
+        {"ReyB","assets/images/ReyB.png"},{"ReyR","assets/images/ReyR.png"},
+        {"Fondo","assets/images/Fondo.png"},{"Tablero","assets/images/Tablero.png"}
+    };
+    for(auto &p:archivos){
+        if(!cargarTxt(tex[p.first], p.second)){
+            cerr << "Error cargando textura " << p.second << "\n";
+            return -1;
         }
     }
 
-    // ----- Crear sprites de piezas (solo los que se van a usar) -----
-    map<string, sf::Sprite> pieza;
+    // Sprites fondo y tablero
+    sf::Sprite fondo(tex["Fondo"]);
+    sf::Sprite tablero(tex["Tablero"]);
+    // posicionar tablero en coordenadas reales (TABLERO_X/TABLERO_Y). Si la imagen Tablero contiene margenes,
+    // puedes escalarla para que la zona jugable coincida con 8*TAM_CASILLA.
+    tablero.setPosition((float)TABLERO_X, (float)TABLERO_Y);
+    // escala opcional: si la imagen Tablero mide 580x580 y quieres que area jugable sea 8*TAM_CASILLA = 560
+    // calcula escala: 560/580 = 0.9655. Si tu imagen ya está preparada, puedes comentar la siguiente línea.
+    float escalaTab = (8.0f * TAM_CASILLA) / (float)tex["Tablero"].getSize().x;
+    tablero.setScale(escalaTab, escalaTab);
 
-    auto colocarPieza = [&](sf::Sprite &s, int columna, int fila, bool blanca) {
-        int dx = blanca ? DESPLAZ_X_BLANCA : DESPLAZ_X_NEGRA;
-        int dy = blanca ? DESPLAZ_Y_BLANCA : DESPLAZ_Y_NEGRA;
+    // vector de piezas
+    vector<Pieza> piezas;
+    piezas.reserve(32);
 
-        s.setPosition(OFFSET_X + MARGEN + columna * TAM_CASILLA + dx,
-                      OFFSET_Y + MARGEN + fila * TAM_CASILLA + dy);
+    // inicializar tablero lógico a -1
+    for(int r=0;r<FILAS;r++) for(int c=0;c<COLUMNAS;c++) tableroLogico[r][c] = -1;
 
-        s.setScale((float)TAM_CASILLA / s.getTexture()->getSize().x,
-                   (float)TAM_CASILLA / s.getTexture()->getSize().y);
+    auto nuevaId = [&](const string &base, int n){
+        return base + "_" + to_string(n);
     };
 
-    // ----- Colocación inicial de piezas -----
+    // función auxiliar para añadir una pieza (crea sprite, la centra y actualiza tablero lógico)
+    auto addPieza = [&](TipoPieza tipo, ColorPieza color, int fila, int col, const string &texKey, const string &idBase){
+        Pieza p;
+        static int contador = 0;
+        p.id = nuevaId(idBase, contador++);
+        p.tipo = tipo;
+        p.color = color;
+        p.fila = fila; p.col = col;
+        p.sprite.setTexture(tex[texKey]);
+        // centrar y escalar
+        centrarSpriteEnCasilla(p.sprite, fila, col);
+        tableroLogico[fila][col] = (int)piezas.size();
+        piezas.push_back(move(p));
+    };
 
-    // Peones
-    for (int i = 0; i < 8; i++) {
-        sf::Sprite pb(texturaPieza["PeonB"]);
-        colocarPieza(pb, i, 6, true);
-        pieza["PeonB" + to_string(i)] = pb;
+    // Añadir todas las piezas (32) - nombres y mapeo a tipos
+    // blancas en filas 6 (peones) y 7 (back rank)
+    for(int c=0;c<8;c++) addPieza(TipoPieza::Pawn, ColorPieza::White, 6, c, "PeonB", "PeonB");
+    addPieza(TipoPieza::Rook, ColorPieza::White, 7, 0, "TorreB", "TorreB");
+    addPieza(TipoPieza::Knight, ColorPieza::White, 7, 1, "CaballoB", "CaballoB");
+    addPieza(TipoPieza::Bishop, ColorPieza::White, 7, 2, "AlfilB", "AlfilB");
+    addPieza(TipoPieza::Queen, ColorPieza::White, 7, 3, "DamaB", "DamaB");
+    addPieza(TipoPieza::King, ColorPieza::White, 7, 4, "ReyB", "ReyB");
+    addPieza(TipoPieza::Bishop, ColorPieza::White, 7, 5, "AlfilB", "AlfilB");
+    addPieza(TipoPieza::Knight, ColorPieza::White, 7, 6, "CaballoB", "CaballoB");
+    addPieza(TipoPieza::Rook, ColorPieza::White, 7, 7, "TorreB", "TorreB");
 
-        sf::Sprite pr(texturaPieza["PeonR"]);
-        colocarPieza(pr, i, 1, false);
-        pieza["PeonR" + to_string(i)] = pr;
-    }
+    // negras
+    for(int c=0;c<8;c++) addPieza(TipoPieza::Pawn, ColorPieza::Black, 1, c, "PeonR", "PeonR");
+    addPieza(TipoPieza::Rook, ColorPieza::Black, 0, 0, "TorreR", "TorreR");
+    addPieza(TipoPieza::Knight, ColorPieza::Black, 0, 1, "CaballoR", "CaballoR");
+    addPieza(TipoPieza::Bishop, ColorPieza::Black, 0, 2, "AlfilR", "AlfilR");
+    addPieza(TipoPieza::Queen, ColorPieza::Black, 0, 3, "DamaR", "DamaR");
+    addPieza(TipoPieza::King, ColorPieza::Black, 0, 4, "ReyR", "ReyR");
+    addPieza(TipoPieza::Bishop, ColorPieza::Black, 0, 5, "AlfilR", "AlfilR");
+    addPieza(TipoPieza::Knight, ColorPieza::Black, 0, 6, "CaballoR", "CaballoR");
+    addPieza(TipoPieza::Rook, ColorPieza::Black, 0, 7, "TorreR", "TorreR");
 
-    // Torres
-    {
-        sf::Sprite tb0(texturaPieza["TorreB"]); colocarPieza(tb0, 0, 7, true); pieza["TorreB0"] = tb0;
-        sf::Sprite tb1(texturaPieza["TorreB"]); colocarPieza(tb1, 7, 7, true); pieza["TorreB1"] = tb1;
+    // Variables para arrastre
+    bool arrastrando = false;
+    int idxSeleccionado = -1;
+    sf::Vector2f difMouse; // offset del mouse respecto al origin del sprite en el pick
+    int origenFila= -1, origenCol = -1;
 
-        sf::Sprite tr0(texturaPieza["TorreR"]); colocarPieza(tr0, 0, 0, false); pieza["TorreR0"] = tr0;
-        sf::Sprite tr1(texturaPieza["TorreR"]); colocarPieza(tr1, 7, 0, false); pieza["TorreR1"] = tr1;
-    }
+    // Bucle principal
+    while(window.isOpen()){
+        sf::Event ev;
+        while(window.pollEvent(ev)){
+            if(ev.type == sf::Event::Closed) window.close();
 
-    // Caballos
-    {
-        sf::Sprite cb0(texturaPieza["CaballoB"]); colocarPieza(cb0, 1, 7, true); pieza["CaballoB0"] = cb0;
-        sf::Sprite cb1(texturaPieza["CaballoB"]); colocarPieza(cb1, 6, 7, true); pieza["CaballoB1"] = cb1;
-
-        sf::Sprite cr0(texturaPieza["CaballoR"]); colocarPieza(cr0, 1, 0, false); pieza["CaballoR0"] = cr0;
-        sf::Sprite cr1(texturaPieza["CaballoR"]); colocarPieza(cr1, 6, 0, false); pieza["CaballoR1"] = cr1;
-    }
-
-    // Alfiles
-    {
-        sf::Sprite ab0(texturaPieza["AlfilB"]); colocarPieza(ab0, 2, 7, true); pieza["AlfilB0"] = ab0;
-        sf::Sprite ab1(texturaPieza["AlfilB"]); colocarPieza(ab1, 5, 7, true); pieza["AlfilB1"] = ab1;
-
-        sf::Sprite ar0(texturaPieza["AlfilR"]); colocarPieza(ar0, 2, 0, false); pieza["AlfilR0"] = ar0;
-        sf::Sprite ar1(texturaPieza["AlfilR"]); colocarPieza(ar1, 5, 0, false); pieza["AlfilR1"] = ar1;
-    }
-
-    // Damas
-    {
-        sf::Sprite db(texturaPieza["DamaB"]); colocarPieza(db, 3, 7, true); pieza["DamaB"] = db;
-        sf::Sprite dr(texturaPieza["DamaR"]); colocarPieza(dr, 3, 0, false); pieza["DamaR"] = dr;
-    }
-
-    // Reyes
-    {
-        sf::Sprite rb(texturaPieza["ReyB"]); colocarPieza(rb, 4, 7, true); pieza["ReyB"] = rb;
-        sf::Sprite rr(texturaPieza["ReyR"]); colocarPieza(rr, 4, 0, false); pieza["ReyR"] = rr;
-    }
-
-    // ----- Movimiento del mouse (arrastrar piezas) -----
-    bool moviendo = false;
-    string piezaSeleccionada = "";
-    sf::Vector2f diferencia;
-
-    while (ventana.isOpen()) {
-        sf::Event evento;
-        while (ventana.pollEvent(evento)) {
-            if (evento.type == sf::Event::Closed)
-                ventana.close();
-
-            // Selección de pieza
-            if (evento.type == sf::Event::MouseButtonPressed && evento.mouseButton.button == sf::Mouse::Left) {
-                sf::Vector2f mouse = ventana.mapPixelToCoords(sf::Mouse::getPosition(ventana));
-                for (auto &p : pieza) {
-                    if (p.second.getGlobalBounds().contains(mouse)) {
-                        moviendo = true;
-                        piezaSeleccionada = p.first;
-                        diferencia = mouse - p.second.getPosition();
+            // PICK: al presionar botón izquierdo, ver si clic sobre sprite (iterar de último a primero para topmost)
+            if(ev.type == sf::Event::MouseButtonPressed && ev.mouseButton.button == sf::Mouse::Left){
+                sf::Vector2f mouse = window.mapPixelToCoords(sf::Mouse::getPosition(window));
+                // buscar pieza que contiene el punto, iterando en reversa para coger la superior
+                idxSeleccionado = -1;
+                for(int i = (int)piezas.size()-1; i>=0; --i){
+                    if(piezas[i].sprite.getGlobalBounds().contains(mouse)){
+                        idxSeleccionado = i;
                         break;
                     }
                 }
+                if(idxSeleccionado != -1){
+                    arrastrando = true;
+                    // calcular offset para arrastrar sin "saltar"
+                    sf::Vector2f posSpr = piezas[idxSeleccionado].sprite.getPosition();
+                    difMouse = mouse - posSpr;
+                    origenFila = piezas[idxSeleccionado].fila;
+                    origenCol  = piezas[idxSeleccionado].col;
+                    // Mientras arrastramos, "liberamos" la casilla lógica temporalmente para permitir ver captura en ella
+                    tableroLogico[origenFila][origenCol] = -1;
+                }
             }
 
-            // Soltar pieza
-            if (evento.type == sf::Event::MouseButtonReleased && evento.mouseButton.button == sf::Mouse::Left) {
-                moviendo = false;
-                piezaSeleccionada = "";
+            // DROP: al soltar
+            if(ev.type == sf::Event::MouseButtonReleased && ev.mouseButton.button == sf::Mouse::Left && arrastrando){
+                arrastrando = false;
+                sf::Vector2f mouse = window.mapPixelToCoords(sf::Mouse::getPosition(window));
+                // encontrar casilla más cercana al punto del mouse
+                Pos destino = casillaMasCercanaDesdePixel(mouse.x, mouse.y);
+                int dstF = destino.fila;
+                int dstC = destino.col;
+
+                // seguridad: clamp
+                if(!dentroTablero(dstF, dstC)){
+                    dstF = max(0,min(FILAS-1,dstF));
+                    dstC = max(0,min(COLUMNAS-1,dstC));
+                }
+
+                // validar movimiento
+                bool valido = movimientoLegal(piezas, idxSeleccionado, dstF, dstC);
+
+                if(valido){
+                    // si hay pieza enemiga, eliminarla del vector y actualizar tablero
+                    if(tableroLogico[dstF][dstC] != -1){
+                        int idxVictima = tableroLogico[dstF][dstC];
+                        // quitar víctima del mapa lógico y marcar su sprite fuera (o invisibilizar)
+                        // Para mantener índices simples, marcaremos su sprite fuera de pantalla y tableroLogico en -1
+                        piezas[idxVictima].sprite.setPosition(-1000.f, -1000.f);
+                        piezas[idxVictima].fila = -1; piezas[idxVictima].col = -1;
+                        tableroLogico[dstF][dstC] = -1;
+                    }
+                    // colocar pieza seleccionada en destino: actualizar datos lógicos y sprite centrado
+                    piezas[idxSeleccionado].fila = dstF; piezas[idxSeleccionado].col = dstC;
+                    centrarSpriteEnCasilla(piezas[idxSeleccionado].sprite, dstF, dstC);
+                    tableroLogico[dstF][dstC] = idxSeleccionado;
+                } else {
+                    // regresar a origen
+                    piezas[idxSeleccionado].fila = origenFila;
+                    piezas[idxSeleccionado].col = origenCol;
+                    centrarSpriteEnCasilla(piezas[idxSeleccionado].sprite, origenFila, origenCol);
+                    tableroLogico[origenFila][origenCol] = idxSeleccionado;
+                }
+                idxSeleccionado = -1;
             }
+
+            // (opcional) mover con teclado u otras interacciones puede ir aquí
         }
 
-        // Movimiento en tiempo real
-        if (moviendo && piezaSeleccionada != "") {
-            sf::Vector2f mouse = ventana.mapPixelToCoords(sf::Mouse::getPosition(ventana));
-            pieza[piezaSeleccionada].setPosition(mouse - diferencia);
+        // durante arrastre mover sprite con offset (fluido)
+        if(arrastrando && idxSeleccionado != -1){
+            sf::Vector2f mouse = window.mapPixelToCoords(sf::Mouse::getPosition(window));
+            // la posición visual será mouse - difMouse (sprite origin está en centro por centrarSpriteEnCasilla)
+            // Consideramos que sprite origin es centro; por tanto posicionar en mouse - difMouse:
+            piezas[idxSeleccionado].sprite.setPosition(mouse - difMouse);
         }
 
-        // Dibujado
-        ventana.clear();
-        ventana.draw(fondo);
-        ventana.draw(tablero);
-        for (auto &p : pieza)
-            ventana.draw(p.second);
-        ventana.display();
+        // dibujado
+        window.clear();
+        window.draw(fondo);
+        window.draw(tablero);
+        // dibujar todas piezas
+        for(const auto &pz : piezas) window.draw(pz.sprite);
+        window.display();
     }
 
     return 0;
 }
-
 
