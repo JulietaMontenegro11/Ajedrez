@@ -1,18 +1,24 @@
+# Nombre del ejecutable
+OBJ = Juego.exe
+
 # Compilador
 CXX = g++
-# Flags de compilación
-CXXFLAGS = -std=c++17 -Wall -I"C:/SFML/include"
-# Librerías SFML
-LDFLAGS = -L"C:/SFML/lib" -lsfml-graphics -lsfml-window -lsfml-system
-# Archivo ejecutable
-TARGET = Ajedrez
-# Archivos fuente
-SRC = Ajedrez.cpp
 
-all: $(TARGET)
+# Flags para SFML
+FLAGS = -lsfml-graphics -lsfml-window -lsfml-system
 
-$(TARGET): $(SRC)
-	$(CXX) $(CXXFLAGS) -o $(TARGET) $(SRC) $(LDFLAGS)
+# Archivo fuente
+SRC = src/Juego.cpp
 
+# Regla principal
+all: $(OBJ)
+
+$(OBJ): $(SRC)
+	$(CXX) $(SRC) -o $(OBJ) $(FLAGS)
+
+# Limpiar
 clean:
-	del $(TARGET).exe
+	del $(OBJ)
+
+
+
