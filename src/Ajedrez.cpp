@@ -33,77 +33,65 @@ int main() {
 
     sf::Sprite fondo(fondoTXT);
     sf::Sprite tablero(tableroTXT);
-
     tablero.setPosition(OFFSET_X, OFFSET_Y);
-    // Escalar tablero para que encaje en 580x580 px
-    tablero.setScale(580.0f / tablero.getTexture()->getSize().x,
-                     580.0f / tablero.getTexture()->getSize().y);
 
     // ----- Cargar piezas -----
     map<string, sf::Texture> texturaPieza;
+    string nombres[] = {"Peon","Torre","Caballo","Alfil","Dama","Rey"};
+    string colores[] = {"B","R"}; // B = blancas, R = negras
 
-    string tipos[] = {"Peon", "Torre", "Caballo", "Alfil", "Dama", "Rey"};
-    string colores[] = {"B", "R"}; // B = blancas, R = negras
-
-    for (string base : tipos) {
+    for (string base : nombres) {
         for (string c : colores) {
-            if (!cargarImagen(texturaPieza[base + c], "assets/images/" + base + c + ".png")) return -1;
+            string clave = base + c;
+            if (!cargarImagen(texturaPieza[clave], "assets/images/" + clave + ".png")) return -1;
         }
     }
 
-    // ----- Crear sprites -----
+    // ----- Crear sprites de piezas -----
     map<string, sf::Sprite> pieza;
-    for (auto &t : texturaPieza)
-        pieza[t.first].setTexture(t.second);
 
-    // ----------- Función para colocar una pieza en el tablero -----------
-    auto colocarPieza = [&](string nombre, int columna, int fila) {
-        pieza[nombre].setPosition(OFFSET_X + columna * TAM_CASILLA,
-                                  OFFSET_Y + fila * TAM_CASILLA);
-
-        pieza[nombre].setScale((float)TAM_CASILLA / pieza[nombre].getTexture()->getSize().x,
-                               (float)TAM_CASILLA / pieza[nombre].getTexture()->getSize().y);
+    auto crearYColocar = [&](string nombre, int col, int fila) {
+        sf::Sprite nuevoSprite(texturaPieza[nombre]);
+        nuevoSprite.setScale((float)TAM_CASILLA / texturaPieza[nombre].getSize().x,
+                             (float)TAM_CASILLA / texturaPieza[nombre].getSize().y);
+        nuevoSprite.setPosition(OFFSET_X + col * TAM_CASILLA,
+                                OFFSET_Y + fila * TAM_CASILLA);
+        pieza[nombre] = nuevoSprite;
     };
 
     // ----------- Colocación inicial de piezas -----------
 
     // Peones
     for (int i = 0; i < 8; i++) {
-        pieza["PeonB" + to_string(i)] = pieza["PeonB"];
-        colocarPieza("PeonB" + to_string(i), i, 6);
-
-        pieza["PeonR" + to_string(i)] = pieza["PeonR"];
-        colocarPieza("PeonR" + to_string(i), i, 1);
+        crearYColocar("PeonB", i, 6);
+        crearYColocar("PeonR", i, 1);
     }
 
     // Torres
-    pieza["TorreB0"] = pieza["TorreB"]; colocarPieza("TorreB0", 0, 7);
-    pieza["TorreB1"] = pieza["TorreB"]; colocarPieza("TorreB1", 7, 7);
-
-    pieza["TorreR0"] = pieza["TorreR"]; colocarPieza("TorreR0", 0, 0);
-    pieza["TorreR1"] = pieza["TorreR"]; colocarPieza("TorreR1", 7, 0);
+    crearYColocar("TorreB", 0, 7);
+    crearYColocar("TorreB", 7, 7);
+    crearYColocar("TorreR", 0, 0);
+    crearYColocar("TorreR", 7, 0);
 
     // Caballos
-    pieza["CaballoB0"] = pieza["CaballoB"]; colocarPieza("CaballoB0", 1, 7);
-    pieza["CaballoB1"] = pieza["CaballoB"]; colocarPieza("CaballoB1", 6, 7);
-
-    pieza["CaballoR0"] = pieza["CaballoR"]; colocarPieza("CaballoR0", 1, 0);
-    pieza["CaballoR1"] = pieza["CaballoR"]; colocarPieza("CaballoR1", 6, 0);
+    crearYColocar("CaballoB", 1, 7);
+    crearYColocar("CaballoB", 6, 7);
+    crearYColocar("CaballoR", 1, 0);
+    crearYColocar("CaballoR", 6, 0);
 
     // Alfiles
-    pieza["AlfilB0"] = pieza["AlfilB"]; colocarPieza("AlfilB0", 2, 7);
-    pieza["AlfilB1"] = pieza["AlfilB"]; colocarPieza("AlfilB1", 5, 7);
-
-    pieza["AlfilR0"] = pieza["AlfilR"]; colocarPieza("AlfilR0", 2, 0);
-    pieza["AlfilR1"] = pieza["AlfilR"]; colocarPieza("AlfilR1", 5, 0);
+    crearYColocar("AlfilB", 2, 7);
+    crearYColocar("AlfilB", 5, 7);
+    crearYColocar("AlfilR", 2, 0);
+    crearYColocar("AlfilR", 5, 0);
 
     // Damas
-    colocarPieza("DamaB", 3, 7);
-    colocarPieza("DamaR", 3, 0);
+    crearYColocar("DamaB", 3, 7);
+    crearYColocar("DamaR", 3, 0);
 
     // Reyes
-    colocarPieza("ReyB", 4, 7);
-    colocarPieza("ReyR", 4, 0);
+    crearYColocar("ReyB", 4, 7);
+    crearYColocar("ReyR", 4, 0);
 
     // --------------- Movimiento del mouse (arrastrar) ---------------
     bool moviendo = false;
