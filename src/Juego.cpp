@@ -510,12 +510,18 @@ int main(){
         };
         setScaleFor(btnRook); setScaleFor(btnKnight); setScaleFor(btnBishop); setScaleFor(btnQueen);
 
-        sf::Vector2f center = recuadroPromocion.getPosition();
-        float spacing = 90.0f;
-        btnRook.setPosition(center.x - 1.5f*spacing, center.y);
-        btnKnight.setPosition(center.x - 0.5f*spacing, center.y);
-        btnBishop.setPosition(center.x + 0.5f*spacing, center.y);
-        btnQueen.setPosition(center.x + 1.5f*spacing, center.y);
+    sf::Vector2f center = recuadroPromocion.getPosition(); // centro del sprite Escoge.png
+        float sep = 20.0f; // separación horizontal entre piezas
+        float totalWidth = 4.0f * TAM_CASILLA + 3.0f * sep;
+        float startX = center.x - totalWidth / 2.0f;
+        float yCenter = center.y; // línea central del recuadro
+
+        btnRook.setPosition(  startX + 0*(TAM_CASILLA+sep), yCenter);
+        btnKnight.setPosition(startX + 1*(TAM_CASILLA+sep), yCenter);
+        btnBishop.setPosition(startX + 2*(TAM_CASILLA+sep), yCenter);
+        btnQueen.setPosition( startX + 3*(TAM_CASILLA+sep), yCenter);
+
+
     };
 
     // sombra para arrastre
