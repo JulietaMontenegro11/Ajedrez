@@ -8,7 +8,7 @@ CXX = g++
 CXXFLAGS = -std=c++17 -Wall -Iinclude
 
 # Flags para SFML
-FLAGS = -lsfml-graphics -lsfml-window -lsfml-system
+FLAGS = -lsfml-graphics -lsfml-window -lsfml-system -lsfml-audio
 
 # Archivos fuente
 SRC = src/Juego.cpp src/tipos.cpp src/graficos.cpp src/jaque.cpp src/helpers.cpp src/movimientos.cpp 
