@@ -843,7 +843,7 @@ int main(){
             window.draw(btnQueen);
         }
 
-        window.display();
+        window.display();//CAMBIO
     } // loop
 
     return 0;
