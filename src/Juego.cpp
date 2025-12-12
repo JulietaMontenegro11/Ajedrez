@@ -84,16 +84,19 @@ int main(){
     int minutosBlanco=5, segundosBlanco=0, minutosNegro=5, segundosNegro=0;
     bool tiempoAgotado=false;
 
-    // Texturas de reloj y números
-    sf::Texture texReloj; if(!cargarTxt(texReloj,"assets/reloj/Reloj 1.png")) return -1;
-    sf::Sprite relojSpr(texReloj); relojSpr.setPosition(800,50);
+    // Textura del reloj
+    sf::Texture texReloj; 
+    if(!cargarTxt(texReloj,"assets/reloj/Reloj 1.png")) return -1;
+    sf::Sprite relojSpr(texReloj); 
+    relojSpr.setPosition(800,50);
 
-    map<int,sf::Texture> texNumeros;
+    // Texturas de números (0-9) oscuros
+    map<int,sf::Texture> texNumerosOscuro;
     for(int i=0;i<=9;i++){
         sf::Texture t; 
         string fname = "assets/reloj/"+to_string(i)+" oscuro.png";
         if(!cargarTxt(t,fname)) return -1;
-        texNumeros[i] = t;
+        texNumerosOscuro[i] = t;
     }
 
     // Textura "AGOTADO"
@@ -284,15 +287,21 @@ int main(){
             if(p.alive) window.draw(p.sprite);
         }
 
-        // Reloj y números
+        // ---------------- Dibujar reloj y números ----------------
         window.draw(relojSpr);
-        int min = (turno==ColorPieza::White)?minutosBlanco:minutosNegro;
-        int seg = (turno==ColorPieza::White)?segundosBlanco:segundosNegro;
+        int min = (turno==ColorPieza::White)? minutosBlanco : minutosNegro;
+        int seg = (turno==ColorPieza::White)? segundosBlanco : segundosNegro;
 
-        sf::Sprite sMin1(texNumeros[min/10]); sMin1.setPosition(relojSpr.getPosition().x+10,relojSpr.getPosition().y+10);
-        sf::Sprite sMin2(texNumeros[min%10]); sMin2.setPosition(relojSpr.getPosition().x+35,relojSpr.getPosition().y+10);
-        sf::Sprite sSeg1(texNumeros[seg/10]); sSeg1.setPosition(relojSpr.getPosition().x+80,relojSpr.getPosition().y+10);
-        sf::Sprite sSeg2(texNumeros[seg%10]); sSeg2.setPosition(relojSpr.getPosition().x+105,relojSpr.getPosition().y+10);
+        // Referencias temporales a texturas
+        sf::Texture &tMin1 = texNumerosOscuro[min/10];
+        sf::Texture &tMin2 = texNumerosOscuro[min%10];
+        sf::Texture &tSeg1 = texNumerosOscuro[seg/10];
+        sf::Texture &tSeg2 = texNumerosOscuro[seg%10];
+
+        sf::Sprite sMin1(tMin1); sMin1.setPosition(relojSpr.getPosition().x + 10, relojSpr.getPosition().y + 10);
+        sf::Sprite sMin2(tMin2); sMin2.setPosition(relojSpr.getPosition().x + 35, relojSpr.getPosition().y + 10);
+        sf::Sprite sSeg1(tSeg1); sSeg1.setPosition(relojSpr.getPosition().x + 80, relojSpr.getPosition().y + 10);
+        sf::Sprite sSeg2(tSeg2); sSeg2.setPosition(relojSpr.getPosition().x + 105, relojSpr.getPosition().y + 10);
 
         window.draw(sMin1); window.draw(sMin2);
         window.draw(sSeg1); window.draw(sSeg2);
