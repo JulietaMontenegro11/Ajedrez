@@ -4,21 +4,25 @@ OBJ = Juego.exe
 # Compilador
 CXX = g++
 
+# Flags de compilación
+CXXFLAGS = -std=c++17 -Wall -Iinclude
+
 # Flags para SFML
 FLAGS = -lsfml-graphics -lsfml-window -lsfml-system
 
-# Archivo fuente
-SRC = src/Juego.cpp
+# Archivos fuente
+SRC = src/Juego.cpp src/tipos.cpp src/graficos.cpp src/jaque.cpp src/helpers.cpp src/movimientos.cpp 
 
 # Regla principal
 all: $(OBJ)
 
 $(OBJ): $(SRC)
-	$(CXX) $(SRC) -o $(OBJ) $(FLAGS)
+	$(CXX) $(CXXFLAGS) $(SRC) -o $(OBJ) $(FLAGS)
 
 # Limpiar
 clean:
-	del $(OBJ)
+	rm -f $(OBJ)
+
 
 
 

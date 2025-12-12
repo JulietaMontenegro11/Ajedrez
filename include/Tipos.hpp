@@ -1,5 +1,8 @@
 #pragma once
 #include <SFML/Graphics.hpp>
+#include <iostream>
+#include <vector>
+#include <map>
 #include <string>
 #include <cmath>
 using namespace std;
@@ -25,7 +28,7 @@ enum class TipoPieza { Pawn, Rook, Knight, Bishop, Queen, King };
 enum class ColorPieza { White, Black };
 
 struct Pieza {
-    std::string id;           // id único
+    string id;           // id único
     TipoPieza tipo;
     ColorPieza color;
     int fila, col;       // posición lógica (-1,-1 si fuera)
@@ -39,9 +42,21 @@ struct Pieza {
     bool animandoCaptura = false;
     sf::Clock animClock;
 
-    // nuevo: si la pieza ya se movió (importante para enroque)
+    // si la pieza ya se movió (importante para enroque)
     bool hasMoved = false;
+
+    // protección "guardia": si true, no puede ser capturada durante el turno de protección activo
+    bool protegido = false;
 };
 
 // tablero lógico: índice de vector piezas, o -1 si vacío
 extern int tableroLogico[FILAS][COLS];
+
+// Flags de reglas especiales por jugador
+struct ReglasFlags {
+    bool guardiaUsado = false;           // 1 vez por juego
+    int  guardiaIdx = -1;                // índice pieza protegida
+    bool proteccionActiva = false;       // protección corre durante el turno completo del rival
+    ColorPieza proteccionTurnoDe = ColorPieza::White; // quién está protegido este turno
+    bool enroque3Usado = false;          // 1 vez por juego (enroque extendido)
+};
