@@ -837,8 +837,8 @@ int main(){
             window.draw(btnQueen);
         }
 
-        window.display();
+        window.display();//CAMBIO
     } // loop
 
-    return 0;//Prueba de cambios
+    return 0;
 }
